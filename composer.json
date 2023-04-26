@@ -1,0 +1,7 @@
+{
+    "require": {
+        "yiisoft/db-mysql": "^1.0",
+        "yiisoft/cache": "^3.0",
+        "yiisoft/cache-file": "^3.0"
+    }
+}
