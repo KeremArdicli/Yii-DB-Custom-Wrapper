@@ -15,11 +15,14 @@ class DataBase
     public string $gecistarihi;
     public string $aciklama;
     public array $values;
+    public array $updates;
+    public array $conditions;
     public TableNames $tablename;
     public int $erkenfiyat;
     public int $zamlifiyat;
     public int $ilgilibutce;
     public string $conditionalQuery = "";
+    public bool $result = false;
 
     /**
      * Retrieve DB isntance with the start of the Class
@@ -36,9 +39,9 @@ class DataBase
      *
      * @param TableNames $tablename
      * @param array $values ["columname" => "value"]
-     * @return void
+     * @return bool
      */
-    public function insert_into(TableNames $tablename, array $values)
+    public function insert_into(TableNames $tablename, array $values): bool
     {
         $this->values = $values;
         $this->tablename = $tablename;
@@ -55,16 +58,52 @@ class DataBase
                     $bindValues[$newKey] = $value;
                 }
                 try {
-                    $db
+                    if ($db
                         ->createCommand($sql)
                         ->bindValues($bindValues)
-                        ->execute();
+                        ->execute()
+                    ) {
+                        $this->result = true;
+                    }
                 } catch (Exception $e) {
-                    // var_dump($e->getMessage()); /* uncomment this line to se ethe errorsin local dev env */
-                    echo "An error has been occured!\n";
+                    // var_dump($e->getMessage()); /* uncomment this line to see the errors in local dev env */
+                    $this->result = false;
                 }
             }
         );
+
+        return $this->result;
+    }
+    /**
+     * This method updates the table with the given conditions. if no conditions are set,
+     * all of the rows will be updated. If you have more than one condition,
+     * put them in array as arrays.
+     *
+     * @param TableNames $tablename
+     * @param array $updates
+     * @param array $conditions (optional) ["id", ">", "3] or [["name", "=", "name"], ["email", "=", "email"]]
+     * * @return boolean
+     */
+    public function update(TableNames $tablename, array $updates, array $conditions = [])
+    {
+        $this->tablename = $tablename;
+        $this->updates = $updates;
+        $this->conditions = $conditions;
+
+        $sql = $this->update_sql($this->tablename, $this->updates, $this->conditions);
+                
+        $bindValues = $this->parse_bindValues($this->updates, $this->conditions);
+
+        try {
+            $updateTable = $this->db->createCommand($sql);
+            $updateTable->bindValues($bindValues);
+            $updateTable->execute() ? $this->result = true : $this->result = false;
+        } catch (Exception $e) {
+            // var_dump($e->getMessage()); /* uncomment this line to see the errors in local dev env */
+            $this->result = false;
+        }
+
+        return $this->result;
     }
 
     /**
@@ -125,7 +164,49 @@ class DataBase
         }
     }
 
-    private function parse_sql(TableNames $tablename, array $values) :string
+    /**
+     * This runs an update query and returns true or false based on result. 
+     * Conditions should be given as array in an array. If there are more than one conditions they will be concatenated
+     * with AND operator. OR and other operators will be added later on.
+     * --TODO --
+     * OR and other operators will be added
+     *
+     * @param TableNames $tablename
+     * @param array $updates
+     * @param array $conditions
+     * @return string
+     */
+    private function update_sql(TableNames $tablename, array $updates, array $conditions = []): string
+    {
+        $this->tablename = $tablename;
+
+        $sql = 'UPDATE {{%' . $this->tablename->toString() . '}} SET ';
+
+        foreach ($updates as $key => $value) {
+            $sql .= "[[$key]] = :$key, ";
+        }
+        $sql = rtrim($sql, ", ");
+
+        if ($conditions !== []) {
+
+            $count = count($conditions);
+
+            $sql .= " WHERE ";
+
+            if (!is_array($conditions[0])) {
+                $sql .= "[[$conditions[0]]] $conditions[1] :$conditions[0]_w AND ";
+            } elseif (is_array($conditions[0])) {
+                foreach ($conditions as $condition) {
+                    $sql .= "[[$condition[0]]] $condition[1] :$condition[0]_w AND ";
+                }
+            }
+        }
+        $sql = rtrim($sql, "AND ");
+
+        return $sql;
+    }
+
+    private function parse_sql(TableNames $tablename, array $values): string
     {
         $this->tablename = $tablename;
 
@@ -146,7 +227,7 @@ class DataBase
         return $sql;
     }
 
-    private function parse_bindValues(array $values) :array
+    private function parse_bindValues(array $values, array $conditions = []): array
     {
         $this->values = $values;
 
@@ -155,6 +236,20 @@ class DataBase
         foreach ($this->values as $key => $value) {
             $newKey = ":$key";
             $bindValues[$newKey] = $value;
+        }
+
+        if ($conditions !== []) {
+
+            if (is_array($conditions[0])) {
+
+                foreach ($conditions as $condition) {
+                    $key = ":$condition[0]_w";
+                    $bindValues[$key] = $condition[count($condition) - 1];
+                }
+            } elseif (!is_array($conditions[0])) {
+                $key = ":$conditions[0]_w";
+                $bindValues[$key] = $conditions[count($conditions) - 1];
+            }
         }
 
         return $bindValues;

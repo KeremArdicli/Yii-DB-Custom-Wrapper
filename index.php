@@ -26,3 +26,7 @@ $conn = new DataBase($db);
 // To add row with dynamic values
 // $array = ["columnName1" => "value1", "columnName2" => "value2"];
 // $conn->insert_into(TableNames::butceler, $array);
+
+// To update an existing row with or without condition
+// currently only AND operator is supported for multiple conditions
+// $conn->update(TableNames::butceler, ["gecistarihi" => "20230505"], ["id", "=", 3]);
